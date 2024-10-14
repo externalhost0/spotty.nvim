@@ -2,6 +2,10 @@
 
 Display your current playstate, track/artist/duration within the lualine plugin.
 
+![Default Spotty lualine bar](./imgs/bar_default.png)
+![Default Spotty lualine bar in different theme](./imgs/bar_default2.png)
+![Default Spotty lualine bar in different theme again](./imgs/bar_default3.png)
+
 ___
 
 ## Warning

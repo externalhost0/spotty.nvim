@@ -261,7 +261,7 @@ function GetTrackname()
 						.. data.item.artists[1].name
 				elseif out.status == 401 then
 					L._statusline_ = "Bad Token"
-					vim.notify("Please recieve another token!", vim.log.levels.ERROR)
+					vim.notify("Token is expired, please relaunch Neovim to authorize again!", vim.log.levels.ERROR)
 					-- clear token from cache
 					set_cached_token("")
 				elseif out.status == 403 then
@@ -270,6 +270,7 @@ function GetTrackname()
 					-- clear token from cache
 					set_cached_token("")
 				elseif out.status == 429 then
+					L._backdelay_ = L._backdelay_ + 5000 -- extend next delay by 5 seconds
 					L._statusline_ = "Exceeded rate limits!"
 					vim.notify("You have exceeded the rate limit!", vim.log.levels.ERROR)
 				else
@@ -320,14 +321,18 @@ function L:init(options)
 	if TOKEN == nil or TOKEN == "" then
 		RequestAccess()
 	end
-	--GetTrackname()
 
+	L._backdelay_ = 0
+	--GetTrackname()
+	-- there is an approximate delay of 1.4 seconds between the actual spotify client and the time to update Spotty
+	-- wait 10 seconds before polling, and poll every once every second
 	if TOKEN ~= nil then
 		local timer = vim.loop.new_timer()
 		timer:start(
 			10000,
-			1000,
+			1000 + L._backdelay_, -- delay if rate limit is reached
 			vim.schedule_wrap(function()
+				L._backdelay_ = 0 -- reset backdelay
 				GetTrackname()
 			end)
 		)
