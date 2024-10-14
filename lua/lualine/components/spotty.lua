@@ -96,6 +96,21 @@ local function parse_http_request(request)
 	}
 end
 
+local function set_cached_token(data)
+	local cache_dir = vim.fn.stdpath("cache") .. "/spotty"
+	local cache_file = cache_dir .. "/keys.json"
+
+	if vim.fn.isdirectory(cache_dir) == 0 then
+		return nil
+	end
+
+	local file = io.open(cache_file, "w")
+	if file then
+		file:write(vim.json.encode(data))
+		file:close()
+	end
+end
+
 -- alot of heavy lifting here
 local TOKEN = nil
 function RequestAccess()
@@ -132,6 +147,7 @@ function RequestAccess()
 								print("Error exchanging code. Request Status:", autherror)
 							else
 								TOKEN = vim.json.decode(data.body).access_token
+								set_cached_token(TOKEN)
 							end
 						end)
 					else
@@ -148,8 +164,6 @@ function RequestAccess()
 			end
 		end)
 	end)
-
-	--print("TCP echo-server listening on port: " .. server:getsockname().port)
 
 	open_url(
 		string.format(
@@ -218,7 +232,7 @@ end
 -- one of the request functions
 function GetTrackname()
 	if TOKEN == nil then
-		return
+		return "Spotty needs a token!"
 	else
 		vim.defer_fn(function()
 			Curl.get("https://api.spotify.com/v1/me/player/currently-playing", {
@@ -261,13 +275,43 @@ function GetTrackname()
 	end
 end
 
+local function get_cached_token()
+	local cache_dir = vim.fn.stdpath("cache") .. "/spotty"
+	local cache_file = cache_dir .. "/keys.json"
+
+	if vim.fn.isdirectory(cache_dir) == 0 then
+		vim.fn.mkdir(cache_dir, "p")
+		return nil
+	end
+
+	if vim.fn.filereadable(cache_file) == 0 then
+		local file = io.open(cache_file, "w")
+		if file then
+			file:write("{}") -- Initialize with an empty JSON object or any default content
+			file:close()
+		end
+		return nil
+	end
+
+	local file = io.open(cache_file, "r")
+	if file then
+		local content = file:read("*a")
+		file:close()
+		return vim.json.decode(content)
+	end
+end
+
 -- when lualine is first init
 function L:init(options)
 	L.super.init(self, options)
 	self.options = vim.tbl_deep_extend("force", default_options, options or {})
 
+	TOKEN = get_cached_token()
+
 	-- where the magic happens
-	RequestAccess()
+	if TOKEN == nil then
+		RequestAccess()
+	end
 end
 
 -- when update is called for every component
