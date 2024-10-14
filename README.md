@@ -35,6 +35,18 @@ export SPOTIFY_CLIENT_SECRET = "your spotify client secret"
 
 ### Setup
 
+In your lualine configuration just add the component "spotty", this may look something like:
+
+```lua
+sections = {
+    lualine_x = {
+        {
+            "spotty"
+        },
+    }
+}
+```
+
 I provide a couple options for some extra customization inside lualine
 
 ```lua
