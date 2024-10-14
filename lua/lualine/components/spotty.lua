@@ -234,44 +234,49 @@ function GetTrackname()
 	if TOKEN == nil then
 		return "Spotty needs a token!"
 	else
-		vim.defer_fn(function()
-			Curl.get("https://api.spotify.com/v1/me/player/currently-playing", {
-				headers = {
-					Authorization = "Bearer " .. TOKEN,
-				},
-				callback = function(out)
-					if out.exit ~= 0 then
-						return
-					end
-					-- OK status from https and correct exit code from curl
-					if out.status == 200 and out.exit == 0 then
-						local data = vim.json.decode(out.body)
-						local play_icon
-						local track_length = ms_to_time(data.progress_ms) .. " / " .. ms_to_time(data.item.duration_ms)
-						if data.is_playing then
-							play_icon = "󰏤"
-						else
-							play_icon = "󰐊"
-						end
-						L._statusline_ = track_length
-							.. " | "
-							.. play_icon
-							.. " | "
-							.. data.item.name
-							.. " - "
-							.. data.item.artists[1].name
-					elseif out.status == 401 then
-						L._statusline_ = "Bad Token"
-					elseif out.status == 403 then
-						L._statusline_ = "Bad OAuth Reqesut"
-					elseif out.status == 429 then
-						L._statusline_ = "Exceeded rate limits!"
+		Curl.get("https://api.spotify.com/v1/me/player/currently-playing", {
+			headers = {
+				Authorization = "Bearer " .. TOKEN,
+			},
+			callback = function(out)
+				if out.exit ~= 0 then
+					return
+				end
+				-- OK status from https and correct exit code from curl
+				if out.status == 200 and out.exit == 0 then
+					local data = vim.json.decode(out.body)
+					local play_icon
+					local track_length = ms_to_time(data.progress_ms) .. " / " .. ms_to_time(data.item.duration_ms)
+					if data.is_playing then
+						play_icon = "󰏤"
 					else
-						L._statusline_ = "Spotify not active."
+						play_icon = "󰐊"
 					end
-				end,
-			})
-		end, 5000) -- delay for curl request
+					L._statusline_ = track_length
+						.. " | "
+						.. play_icon
+						.. " | "
+						.. data.item.name
+						.. " - "
+						.. data.item.artists[1].name
+				elseif out.status == 401 then
+					L._statusline_ = "Bad Token"
+					vim.notify("Please recieve another token!", vim.log.levels.ERROR)
+					-- clear token from cache
+					set_cached_token("")
+				elseif out.status == 403 then
+					L._statusline_ = "Bad OAuth Reqesut"
+					vim.notify("Please redo Authorization!", vim.log.levels.ERROR)
+					-- clear token from cache
+					set_cached_token("")
+				elseif out.status == 429 then
+					L._statusline_ = "Exceeded rate limits!"
+					vim.notify("You have exceeded the rate limit!", vim.log.levels.ERROR)
+				else
+					L._statusline_ = "Spotify Idle"
+				end
+			end,
+		})
 	end
 end
 
@@ -287,7 +292,7 @@ local function get_cached_token()
 	if vim.fn.filereadable(cache_file) == 0 then
 		local file = io.open(cache_file, "w")
 		if file then
-			file:write("{}") -- Initialize with an empty JSON object or any default content
+			file:write("") -- Initialize with an empty JSON object or any default content
 			file:close()
 		end
 		return nil
@@ -297,6 +302,9 @@ local function get_cached_token()
 	if file then
 		local content = file:read("*a")
 		file:close()
+		if content == "" or content:match("^%s*$") then
+			return nil
+		end
 		return vim.json.decode(content)
 	end
 end
@@ -309,14 +317,26 @@ function L:init(options)
 	TOKEN = get_cached_token()
 
 	-- where the magic happens
-	if TOKEN == nil then
+	if TOKEN == nil or TOKEN == "" then
 		RequestAccess()
+	end
+	--GetTrackname()
+
+	if TOKEN ~= nil then
+		local timer = vim.loop.new_timer()
+		timer:start(
+			10000,
+			1000,
+			vim.schedule_wrap(function()
+				GetTrackname()
+			end)
+		)
 	end
 end
 
 -- when update is called for every component
 function L:update_status()
-	return GetTrackname() or L._statusline_ or "Loading..."
+	return L._statusline_ or "Loading..."
 end
 
 return L
