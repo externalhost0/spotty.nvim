@@ -229,6 +229,40 @@ local function ms_to_time(ms)
 	return string.format("%d:%02d", minutes, seconds)
 end
 
+local function get_minutes(ms)
+	return math.floor((ms / 1000) / 60)
+end
+
+local function get_seconds(ms)
+	return math.floor((ms / 1000) % 60)
+end
+
+-- used in both solve_progress and GetTrackname
+local sample_loop_ms
+-- function that uses the system clock to give the progress of songs instant feedback without having to be updated
+local function solve_progress()
+	if TOKEN == nil or L._trackduration_ == nil or L._trackprogress_ == nil then
+		return ""
+	end
+
+	local minutes
+	local seconds
+	-- if playing, use interpolation
+	-- if paused, use real values
+	if L._isplaying_ == true then
+		local diff_ms = vim.loop.now() - sample_loop_ms
+		local interpolated_ms = L._trackprogress_ + diff_ms
+
+		minutes = get_minutes(interpolated_ms)
+		seconds = get_seconds(interpolated_ms)
+	else
+		minutes = get_minutes(L._trackprogress_)
+		seconds = get_seconds(L._trackprogress_)
+	end
+
+	return string.format("%d:%02d", minutes, seconds) .. " / " .. L._trackduration_
+end
+
 -- one of the request functions
 function GetTrackname()
 	if TOKEN == nil then
@@ -246,27 +280,39 @@ function GetTrackname()
 				if out.status == 200 and out.exit == 0 then
 					local data = vim.json.decode(out.body)
 					local play_icon
-					local track_length = ms_to_time(data.progress_ms) .. " / " .. ms_to_time(data.item.duration_ms)
-					if data.is_playing then
-						play_icon = "󰏤"
-					else
-						play_icon = "󰐊"
+					if data == nil then
+						return
 					end
-					L._statusline_ = track_length
-						.. " | "
-						.. play_icon
-						.. " | "
-						.. data.item.name
-						.. " - "
-						.. data.item.artists[1].name
+					if data.item ~= nil then
+						sample_loop_ms = vim.loop.now()
+						-- data we want to be accessible globally
+						L._isplaying_ = data.is_playing
+						L._trackprogress_ = data.progress_ms
+						L._trackduration_ = ms_to_time(data.item.duration_ms)
+
+						if data.is_playing then
+							play_icon = "󰏤"
+						else
+							play_icon = "󰐊"
+						end
+						L._statusline_ = " | "
+							.. play_icon
+							.. " | "
+							.. data.item.name
+							.. " - "
+							.. data.item.artists[1].name
+					end
 				elseif out.status == 401 then
 					L._statusline_ = "Bad Token"
-					vim.notify("Token is expired, please relaunch Neovim to authorize again!", vim.log.levels.ERROR)
+					vim.notify_once(
+						"Token is expired, please relaunch Neovim to authorize again!",
+						vim.log.levels.ERROR
+					)
 					-- clear token from cache
 					set_cached_token("")
 				elseif out.status == 403 then
 					L._statusline_ = "Bad OAuth Reqesut"
-					vim.notify("Please redo Authorization!", vim.log.levels.ERROR)
+					vim.notify_once("Please redo Authorization!", vim.log.levels.ERROR)
 					-- clear token from cache
 					set_cached_token("")
 				elseif out.status == 429 then
@@ -329,8 +375,8 @@ function L:init(options)
 	if TOKEN ~= nil then
 		local timer = vim.loop.new_timer()
 		timer:start(
-			10000,
-			1000 + L._backdelay_, -- delay if rate limit is reached
+			5000, -- start delay
+			5000 + L._backdelay_, -- delay if rate limit is reached
 			vim.schedule_wrap(function()
 				L._backdelay_ = 0 -- reset backdelay
 				GetTrackname()
@@ -341,7 +387,12 @@ end
 
 -- when update is called for every component
 function L:update_status()
-	return L._statusline_ or "Loading..."
+	local duration = solve_progress()
+	if L._statusline_ == nil then
+		return "Loading..."
+	else
+		return (duration .. L._statusline_)
+	end
 end
 
 return L
