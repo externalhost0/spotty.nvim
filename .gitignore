@@ -1,5 +1,5 @@
 # stupid mac
-*.DS_Store
+.DS_Store
 
 # Compiled Lua sources
 luac.out
