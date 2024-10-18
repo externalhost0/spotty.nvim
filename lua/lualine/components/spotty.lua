@@ -6,6 +6,7 @@ local L = require("lualine.component"):extend()
 local Curl = require("plenary.curl")
 
 -- options the spotty componenent has available to it
+-- default options have no use as of now, please refrain from calling options
 local default_options = {
 	style = "default",
 }
@@ -222,7 +223,7 @@ function RequestAuthToken(acc_code, callbackfn)
 	})
 end
 
--- small function that converts milliseconds into understandable min:seconds as a string
+-- small functions that converts milliseconds into understandable time values
 local function ms_to_time(ms)
 	local minutes = math.floor((ms / 1000) / 60)
 	local seconds = math.floor((ms / 1000) % 60)
@@ -259,7 +260,6 @@ local function solve_progress()
 		minutes = get_minutes(L._trackprogress_)
 		seconds = get_seconds(L._trackprogress_)
 	end
-
 	return string.format("%d:%02d", minutes, seconds) .. " / " .. L._trackduration_
 end
 
@@ -276,6 +276,8 @@ function GetTrackname()
 				if out.exit ~= 0 then
 					return
 				end
+				-- for all other paths make isplaying false so duration doesnt appear
+				L._isplaying_ = false
 				-- OK status from https and correct exit code from curl
 				if out.status == 200 and out.exit == 0 then
 					local data = vim.json.decode(out.body)
@@ -317,10 +319,10 @@ function GetTrackname()
 					set_cached_token("")
 				elseif out.status == 429 then
 					L._backdelay_ = L._backdelay_ + 5000 -- extend next delay by 5 seconds
-					L._statusline_ = "Exceeded rate limits!"
+					--L._statusline_ = "Exceeded rate limits!"
 					vim.notify("You have exceeded the rate limit!", vim.log.levels.ERROR)
 				else
-					L._statusline_ = "Spotify Idle"
+					L._statusline_ = "Idle"
 				end
 			end,
 		})
@@ -361,17 +363,16 @@ function L:init(options)
 	L.super.init(self, options)
 	self.options = vim.tbl_deep_extend("force", default_options, options or {})
 
+	-- look for existing TOKEN, if not than perform the first time access request
 	TOKEN = get_cached_token()
-
 	-- where the magic happens
 	if TOKEN == nil or TOKEN == "" then
 		RequestAccess()
 	end
 
 	L._backdelay_ = 0
-	--GetTrackname()
-	-- there is an approximate delay of 1.4 seconds between the actual spotify client and the time to update Spotty
-	-- wait 10 seconds before polling, and poll every once every second
+	-- there is an approximate delay of 1.2 seconds between the actual spotify client and the time to update Spotty
+	-- wait 5 seconds before polling, and poll once every 5 seconds
 	if TOKEN ~= nil then
 		local timer = vim.loop.new_timer()
 		timer:start(
