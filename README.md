@@ -43,8 +43,6 @@ export SPOTIFY_CLIENT_SECRET="your spotify client secret"
 
 After performing the above steps, your next launch of Neovim will automatically prompt you to grant your created app permissions.
 
-The request for authorization will repeat after an hour as Spotify tokens are only good for one hour.
-
 ### Setup
 
 In your lualine configuration just add the component "spotty", this may look something like:
