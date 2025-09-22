@@ -37,8 +37,8 @@ Creating a Spotify App can be done at their developer dashboard: <https://develo
 You must than copy the associated Client ID and Secret for said app, and export them as environmental variables as show below.
 
 ```bash
-export SPOTIFY_CLIENT_ID = "your spotify client id"
-export SPOTIFY_CLIENT_SECRET = "your spotify client secret"
+export SPOTIFY_CLIENT_ID="your spotify client id"
+export SPOTIFY_CLIENT_SECRET="your spotify client secret"
 ```
 
 After performing the above steps, your next launch of Neovim will automatically prompt you to grant your created app permissions.
