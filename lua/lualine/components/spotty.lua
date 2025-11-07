@@ -19,7 +19,7 @@ local client_id = os.getenv("SPOTIFY_CLIENT_ID")
 local client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
 
 -- our redirect_uri
-local redirect_uri = "http://localhost:8888/"
+local redirect_uri = "http://127.0.0.1:8000/callback"
 -- scopes required by spotty.nvim
 local scopes = "user-read-playback-state user-read-currently-playing"
 

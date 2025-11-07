@@ -33,6 +33,7 @@ Adding two environmental variables is **REQUIRED** for the plugin to function!
 As Spotty relies on a Spotify app and the user's client & secret keys.
 
 Creating a Spotify App can be done at their developer dashboard: <https://developer.spotify.com/dashboard>
+'App name' and 'App description' can be set to whatever, Spotty only requires that your app has the 'Redirect URI' as `http://127.0.0.1:8000/callback` and that the 'Web API' option is checked at the bottom.
 
 You must than copy the associated Client ID and Secret for said app, and export them as environmental variables as show below.
 
