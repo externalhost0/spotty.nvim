@@ -328,33 +328,6 @@ local function solve_progress()
 	return string.format("%d:%02d", minutes, seconds) .. " / " .. L._trackduration_
 end
 
--- unused
--- function GetCurrentStatus()
--- 	Curl.get("https://api.spotify.com/v1/me/player/currently-playing", {
--- 		headers = {
--- 			Authorization = "Bearer " .. ACCESS_TOKEN,
--- 		},
--- 		callback = function(out)
--- 			if out.exit ~= 0 then
--- 				return 1
--- 			end
--- 			return out.status
---
--- 			-- if out.status == 200 and out.exit == 0 then
--- 			-- 	return 200
--- 			-- elseif out.status == 401 then
--- 			-- 	return 401
--- 			-- elseif out.status == 403 then
--- 			-- 	return 403
--- 			-- elseif out.status == 429 then
--- 			-- 	return 429
--- 			-- else
--- 			-- 	return 0
--- 			-- end
--- 		end,
--- 	})
--- end
-
 -- one of the request functions
 function GetCurrentlyPlaying()
 	Curl.get("https://api.spotify.com/v1/me/player/currently-playing", {
@@ -379,15 +352,16 @@ function GetCurrentlyPlaying()
 				local track_id = data.item.id
 				local is_playing = data.is_playing
 
+				-- update global values always
+				sample_loop_ms = vim.uv.now()
+				L._isplaying_ = is_playing
+				L._trackprogress_ = data.progress_ms
+				-- always keep in sync with the real duration spotify reports
+				L._trackduration_ = ms_to_time(data.item.duration_ms)
+
 				if track_id ~= last_track_id or is_playing ~= last_is_playing then
 					last_track_id = track_id
 					last_is_playing = is_playing
-
-					-- update global values
-					sample_loop_ms = vim.uv.now()
-					L._isplaying_ = is_playing
-					L._trackprogress_ = data.progress_ms
-					L._trackduration_ = ms_to_time(data.item.duration_ms)
 
 					local play_icon = is_playing and "󰏤" or "󰐊"
 					L._statusline_ = " | " .. play_icon .. " | " .. data.item.name .. " - " .. data.item.artists[1].name
@@ -403,7 +377,10 @@ function GetCurrentlyPlaying()
 				AskRestart = true
 				return 403
 			elseif out.status == 429 then
-				L._backdelay_ = L._backdelay_ + 5000
+				-- rate limited for 10 seconds (next 2 polls)
+				if L._skip_count_ref then
+					L._skip_poll_count_ref(2)
+				end
 				vim.notify("You have exceeded the rate limit!", vim.log.levels.WARN)
 			else
 				L._statusline_ = "Idle"
@@ -414,13 +391,21 @@ end
 
 function StartPolling()
 	local timer = vim.uv.new_timer()
-	L._backdelay_ = 0
-	-- there is an approximate delay of 1.2 seconds between the actual spotify client and the time to update Spotty
-	-- wait 5 seconds before polling, and poll once every 5 seconds
+	-- for rate limit handling
+	local skip_poll_count = 0
+	-- there is an approximate delay of 1.2 seconds between the actual spotify client and the time to update Spotty on state change
 	timer:start(
 		5000,
-		5000 + L._backdelay_,
+		5000,
 		vim.schedule_wrap(function()
+			if AskRestart then
+				timer:stop()
+				timer:close()
+			end
+			if skip_poll_count > 0 then
+				skip_poll_count = skip_poll_count - 1
+				return
+			end
 			if ACCESS_TOKEN == nil then
 				refreshAccessToken(function(error, out)
 					if not error then
@@ -432,15 +417,14 @@ function StartPolling()
 					end
 				end)
 			else
-				L._backdelay_ = 0 -- reset backdelay
 				GetCurrentlyPlaying()
-			end
-			if AskRestart then
-				timer:stop()
-				timer:close()
 			end
 		end)
 	)
+	L._poll_timer = timer
+	L._skip_poll_count_ref = function(new_count)
+		skip_poll_count = new_count
+	end
 end
 
 ------------------------------------ Lualine Calls ----------------------------------------
